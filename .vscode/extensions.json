@@ -1,0 +1,12 @@
+{
+	"recommendations": [
+		"golang.go",
+		"Gruntfuggly.todo-tree",
+		"IBM.output-colorizer",
+		"waderyan.gitblame",
+		"google.geminicodeassist",
+		"google.gemini-cli-vscode-ide-companion",
+		"redhat.vscode-yaml"
+	],
+	"unwantedRecommendations": []
+}

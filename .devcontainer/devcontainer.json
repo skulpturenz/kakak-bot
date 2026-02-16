@@ -1,0 +1,56 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/go-postgres
+{
+	"name": "Alpine Go",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"runArgs": [
+		"--env-file",
+		".devcontainer/.env"
+	],
+	"containerEnv": {
+		"OTLER_SERVICE_NAME": "skulpture-kakak",
+		"GO_ENV": "development"
+	},
+	"mounts": [
+		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+	],
+	"customizations": {
+		"settings": {
+			"go.buildTags": "",
+			"go.toolsEnvVars": {
+				"CGO_ENABLED": "1"
+			},
+			"go.useLanguageServer": true,
+			"go.testEnvVars": {
+				"CGO_ENABLED": "1"
+			},
+			"go.testFlags": [
+				"-v",
+				"-race"
+			],
+			"go.testTimeout": "10s",
+			"go.coverOnSingleTest": true,
+			"go.coverOnSingleTestFile": true,
+			"go.coverOnTestPackage": true,
+			"go.lintTool": "golangci-lint",
+			"go.lintOnSave": "package",
+			"[go]": {
+				"editor.codeActionsOnSave": {
+					"source.organizeImports": true
+				}
+			},
+			"gopls": {
+				"usePlaceholders": false,
+				"staticcheck": true,
+				"vulncheck": "Imports"
+			}
+		}
+	},
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": {
+		// "configure-docker": "sudo chown $(whoami) /var/run/docker.sock",
+		"go-version": "go version"
+	}
+}
