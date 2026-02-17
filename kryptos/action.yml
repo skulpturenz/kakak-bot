@@ -1,0 +1,24 @@
+name: "Kryptos"
+description: "Set env vars in the runner"
+inputs:
+  project:
+    description: "Kryptos project"
+    required: true
+  db-driver:
+    description: "Kryptos DB driver. One of: pgx or sqlite"
+    required: true
+  db-connection-string:
+    description: "DB connection string"
+    required: true
+  encryption-key:
+    description: "Kryptos encryption key to decode secrets"
+    required: true
+outputs:
+  env-json:
+    description: "Environment variables as JSON"
+  env-list:
+    description: "Environment variables as a comma delimited list"
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args: # TODO

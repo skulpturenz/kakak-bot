@@ -1,0 +1,21 @@
+name: "Buang"
+description: "Deploy preview services"
+inputs:
+  api-key:
+    description: "Buang API key"
+    required: true
+  project-id:
+    description: "Buang project id"
+    required: true
+  service-entrypoint:
+    description: "Preview service entrypoint"
+    required: true
+  preview-env:
+    description: "Preview service environment variables"
+outputs:
+  preview-url:
+    description: "Preview service URL"
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args: # TODO

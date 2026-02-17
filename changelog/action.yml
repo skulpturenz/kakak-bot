@@ -1,0 +1,25 @@
+name: "Changelog"
+description: "Generate a changelog file and commit it"
+inputs:
+  message:
+    description: "Commit message"
+    required: true
+    default: "chore: update changelog"
+  branch:
+    description: "Branch to commit to"
+    required: true
+  token:
+    description: "GitHub token"
+    required: true
+    default: ${{ github.token }}
+outputs:
+  commit-sha:
+    description: "SHA of the changelog commit"
+  content:
+    description: "Complete changelog content"
+  unreleased-content:
+    description: "Unreleased changelog content"
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args: # TODO

@@ -1,0 +1,13 @@
+name: "Release"
+description: "Create a GitHub release for the latest unreleased semver tag in the repository"
+inputs:
+  body:
+    description: Release content
+  token:
+    description: "GitHub token"
+    required: true
+    default: ${{ github.token }}
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args: # TODO
