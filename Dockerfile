@@ -6,7 +6,7 @@ COPY . .
 
 # TODO: BUMP
 ARG VERSION="unknown"
-RUN go build -ldflags "-X skulpture/kakak/constants/envs.VERSION=$VERSION"
+RUN go build -ldflags "-X skulpture/kakak/constants/envs.VERSION=$VERSION" -o kakak .
 
 FROM alpine
 
