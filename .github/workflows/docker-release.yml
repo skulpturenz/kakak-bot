@@ -88,11 +88,9 @@ jobs:
             VERSION=${{ steps.bump.outputs.next-tag }}
           tags: ${{ steps.docker.outputs.tags }}
 
-      - name: Push Git tag
-        env:
-          RELEASE_TAG: ${{ steps.bump.outputs.next-tag }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${RELEASE_TAG}" -m "${RELEASE_TAG}"
-          git push origin "refs/tags/${RELEASE_TAG}"
+      - name: Create release
+        uses: ./release
+        with:
+          version: ${{ steps.bump.outputs.next-tag }}
+          token: ${{ github.token }}
+
