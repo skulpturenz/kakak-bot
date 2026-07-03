@@ -12,6 +12,6 @@ FROM alpine
 
 COPY --from=build /build/kakak /app/kakak
 
-RUN apk update && apk add --no-cache git-cliff
+RUN apk update && apk add --no-cache git git-cliff
 
 ENTRYPOINT [ "/app/kakak" ]
