@@ -12,6 +12,11 @@ inputs:
     description: "GitHub token"
     required: true
     default: ${{ github.token }}
+  config:
+    description: "Path to a git-cliff configuration file. Uses the bundled default when empty"
+  output:
+    description: "Path to the changelog file"
+    default: "CHANGELOG.md"
 outputs:
   commit-sha:
     description: "SHA of the changelog commit"
@@ -22,4 +27,14 @@ outputs:
 runs:
   using: "docker"
   image: "Dockerfile"
-  args: # TODO
+  args:
+    - "--message"
+    - "${{ inputs.message }}"
+    - "--branch"
+    - "${{ inputs.branch }}"
+    - "--token"
+    - "${{ inputs.token }}"
+    - "--config"
+    - "${{ inputs.config }}"
+    - "--output"
+    - "${{ inputs.output }}"
