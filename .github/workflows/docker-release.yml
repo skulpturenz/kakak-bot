@@ -1,37 +1,35 @@
 name: Docker Release
 
 on:
-  push:
+  pull_request_target:
+    types:
+      - closed
     branches:
       - main
       - dev
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   publish:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.ref }}
 
-      - name: Select Docker tag
-        id: docker
-        run: |
-          case "${GITHUB_REF_NAME}" in
-            main)
-              echo "tag=latest" >> "${GITHUB_OUTPUT}"
-              ;;
-            dev)
-              echo "tag=dev" >> "${GITHUB_OUTPUT}"
-              ;;
-            *)
-              echo "Unsupported branch: ${GITHUB_REF_NAME}" >&2
-              exit 1
-              ;;
-          esac
+      - name: Match release label
+        id: release-label
+        uses: zwaldowski/match-label-action@v6
+        with:
+          allowed: release/major, release/minor, release/patch, release/prerelease
+          default_match: release/prerelease
 
       - name: Login to Docker Hub
         uses: docker/login-action@v4
@@ -39,11 +37,37 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Determine next Docker version
+        id: bump
+        uses: ./bump
+        with:
+          from: ${{ steps.release-label.outputs.match }}
+
+      - name: Select Docker tags
+        id: docker
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: |
+          {
+            echo "tags<<EOF"
+            echo "skulpture/kakak-bot:${{ steps.bump.outputs.next-tag }}"
+            if [ "${BASE_BRANCH}" = "dev" ]; then
+              echo "skulpture/kakak-bot:dev"
+            fi
+            if [ "${BASE_BRANCH}" = "main" ]; then
+              case "${{ steps.bump.outputs.next-version }}" in
+                *-*) ;;
+                *) echo "skulpture/kakak-bot:latest" ;;
+              esac
+            fi
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           build-args: |
-            VERSION=${{ steps.docker.outputs.tag }}
-          tags: skulpture/kakak-bot:${{ steps.docker.outputs.tag }}
+            VERSION=${{ steps.bump.outputs.next-tag }}
+          tags: ${{ steps.docker.outputs.tags }}
