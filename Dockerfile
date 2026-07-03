@@ -1,4 +1,4 @@
-FROM golang:alpine AS build
+FROM golang:1.26.4-alpine AS build
 
 WORKDIR /build
 
@@ -6,7 +6,7 @@ COPY . .
 
 # TODO: BUMP
 ARG VERSION="unknown"
-RUN go build -ldflags "-X skulpture/kakak/constants/envs.VERSION=$VERSION"
+RUN go build -ldflags "-X skulpture/kakak/constants/envs.VERSION=$VERSION" -o kakak .
 
 FROM alpine
 

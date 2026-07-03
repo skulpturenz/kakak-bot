@@ -1,6 +1,8 @@
 name: "Release"
 description: "Create a GitHub release for the latest unreleased semver tag in the repository"
 inputs:
+  version:
+    description: "Version to release (e.g. v1.2.3). Latest tag based on current SemVer if not provided"
   body:
     description: Release content
   token:
@@ -10,4 +12,10 @@ inputs:
 runs:
   using: "docker"
   image: "Dockerfile"
-  args: # TODO
+  args:
+    - "--version"
+    - "${{ inputs.version }}"
+    - "--body"
+    - "${{ inputs.body }}"
+    - "--token"
+    - "${{ inputs.token }}"

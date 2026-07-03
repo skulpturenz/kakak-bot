@@ -16,3 +16,15 @@ outputs:
     description: "Next semver release version (format: `major.minor.patch[-preid.N]`)"
   next-tag:
     description: "Next semver release tag (includes preid)"
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - "--from"
+    - "${{ inputs.from }}"
+    - "--label-prefix"
+    - "${{ inputs.label-prefix }}"
+    - "--release-prefix"
+    - "${{ inputs.release-prefix }}"
+    - "--preid"
+    - "${{ inputs.preid }}"
