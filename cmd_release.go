@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/spf13/cobra"
 )
@@ -70,6 +72,11 @@ func runRelease(cmd *cobra.Command, args []string) error {
 	}
 
 	_, err = r.CreateTag(tag, head.Hash(), &git.CreateTagOptions{
+		Tagger: &object.Signature{
+			Name:  changelogCommitName,
+			Email: changelogCommitEmail,
+			When:  time.Now(),
+		},
 		Message: tag,
 	})
 	if err != nil && err != git.ErrTagExists {
