@@ -9,7 +9,7 @@ on:
       - dev
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: read
 
 jobs:
@@ -44,6 +44,20 @@ jobs:
           from: ${{ steps.release-label.outputs.match }}
           label-prefix: release/
 
+      - name: Check release tag
+        env:
+          RELEASE_TAG: ${{ steps.bump.outputs.next-tag }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            echo "Tag ${RELEASE_TAG} already exists locally." >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            echo "Tag ${RELEASE_TAG} already exists on origin." >&2
+            exit 1
+          fi
+
       - name: Select Docker tags
         id: docker
         env:
@@ -72,3 +86,12 @@ jobs:
           build-args: |
             VERSION=${{ steps.bump.outputs.next-tag }}
           tags: ${{ steps.docker.outputs.tags }}
+
+      - name: Push Git tag
+        env:
+          RELEASE_TAG: ${{ steps.bump.outputs.next-tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${RELEASE_TAG}" -m "${RELEASE_TAG}"
+          git push origin "refs/tags/${RELEASE_TAG}"
