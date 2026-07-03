@@ -6,7 +6,8 @@ on:
       - closed
     branches:
       - main
-      - dev
+      - staging/**
+      - canary/**
 
 permissions:
   contents: write
