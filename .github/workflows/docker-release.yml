@@ -70,7 +70,7 @@ jobs:
             if [ "${BASE_BRANCH}" = "dev" ]; then
               echo "skulpture/kakak-bot:dev"
             fi
-            if [ "${BASE_BRANCH}" = "main" ]; then
+            if [ "${BASE_BRANCH}" = "master" ]; then
               case "${{ steps.bump.outputs.next-version }}" in
                 *-*) ;;
                 *) echo "skulpture/kakak-bot:latest" ;;
