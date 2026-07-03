@@ -10,7 +10,7 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "kakak",
-		Short: "kakak is a release management tool",
+		Short: "kakak tolong!",
 	}
 )
 
