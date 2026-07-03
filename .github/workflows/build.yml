@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Go packages
+        run: go build -v ./...
+
+      - name: Build root Docker image
+        run: docker build --build-arg VERSION=ci -t skulpture/kakak-bot:ci .
+
+      - name: Build action Docker images
+        run: |
+          for action in bump release buang changelog kryptos; do
+            docker build --build-arg TAG=ci -t "skulpture/kakak-bot-${action}:ci" "${action}"
+          done
