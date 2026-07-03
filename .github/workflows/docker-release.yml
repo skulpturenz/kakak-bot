@@ -42,6 +42,7 @@ jobs:
         uses: ./bump
         with:
           from: ${{ steps.release-label.outputs.match }}
+          label-prefix: release/
 
       - name: Select Docker tags
         id: docker
