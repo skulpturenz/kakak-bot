@@ -1,0 +1,30 @@
+name: "Match Label"
+description: "Match one of a given list of labels against the labels on the workflow PR"
+branding:
+  icon: "hash"
+  color: "orange"
+inputs:
+  allowed:
+    description: "Comma- or newline-separated label names to match exactly one of"
+  allowed-multiple:
+    description: "Comma- or newline-separated label names to match many of"
+  default-match:
+    description: "Label name to match if no matching labels are found"
+  labels:
+    description: "Comma- or newline-separated label names present on the PR"
+    default: ${{ join(github.event.pull_request.labels.*.name, '\n') }}
+outputs:
+  match:
+    description: "The matched label(s). Comma-separated if multiple"
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - "--allowed"
+    - "${{ inputs.allowed }}"
+    - "--allowed-multiple"
+    - "${{ inputs.allowed-multiple }}"
+    - "--default-match"
+    - "${{ inputs.default-match }}"
+    - "--labels"
+    - "${{ inputs.labels }}"

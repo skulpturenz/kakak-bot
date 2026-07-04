@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIncPrerelease(t *testing.T) {
@@ -23,9 +24,7 @@ func TestIncPrerelease(t *testing.T) {
 	for _, tc := range tests {
 		v, _ := semver.NewVersion(tc.input)
 		next := incPrerelease(*v)
-		if next.String() != tc.expected {
-			t.Errorf("incPrerelease(%s) = %s; want %s", tc.input, next.String(), tc.expected)
-		}
+		assert.Equal(t, tc.expected, next.String(), "incPrerelease(%s)", tc.input)
 	}
 }
 
@@ -42,9 +41,7 @@ func TestGetPreid(t *testing.T) {
 
 	for _, tc := range tests {
 		res := getPreid(tc.id, tc.def)
-		if res != tc.expected {
-			t.Errorf("getPreid(%s, %d) = %s; want %s", tc.id, tc.def, res, tc.expected)
-		}
+		assert.Equal(t, tc.expected, res, "getPreid(%s, %d)", tc.id, tc.def)
 	}
 }
 
@@ -97,9 +94,7 @@ func TestBumpLogic(t *testing.T) {
 			}
 		}
 
-		if next.String() != tc.expected {
-			t.Errorf("Bump %s (preid: %s) from %s = %s; want %s", tc.bumpType, tc.preid, base.String(), next.String(), tc.expected)
-		}
+		assert.Equal(t, tc.expected, next.String(), "Bump %s (preid: %s) from %s", tc.bumpType, tc.preid, base.String())
 	}
 }
 
@@ -133,8 +128,6 @@ func TestPrereleaseBumpLogic(t *testing.T) {
 			}
 		}
 
-		if nextVersion.String() != tc.expected {
-			t.Errorf("Prerelease bump (preid: %s) from %s = %s; want %s", tc.preid, tc.current, nextVersion.String(), tc.expected)
-		}
+		assert.Equal(t, tc.expected, nextVersion.String(), "Prerelease bump (preid: %s) from %s", tc.preid, tc.current)
 	}
 }

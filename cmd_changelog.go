@@ -36,11 +36,13 @@ const (
 var defaultCliffConfig string
 
 var (
-	changelogMessage string
-	changelogBranch  string
-	changelogToken   string
-	changelogConfig  string
-	changelogOutput  string
+	changelogMessage    string
+	changelogBranch     string
+	changelogToken      string
+	changelogConfig     string
+	changelogOutput     string
+	changelogAppID      string
+	changelogPrivateKey string
 
 	changelogCmd = &cobra.Command{
 		Use:   "changelog",
@@ -55,6 +57,8 @@ func init() {
 	changelogCmd.Flags().StringVar(&changelogToken, "token", os.Getenv("GITHUB_TOKEN"), "GitHub token")
 	changelogCmd.Flags().StringVar(&changelogConfig, "config", "", "Path to a git-cliff configuration file")
 	changelogCmd.Flags().StringVar(&changelogOutput, "output", defaultChangelogOutput, "Path to the changelog file")
+	changelogCmd.Flags().StringVar(&changelogAppID, "app-id", os.Getenv("GITHUB_APP_ID"), "GitHub App id (mints an installation token when set with --private-key)")
+	changelogCmd.Flags().StringVar(&changelogPrivateKey, "private-key", os.Getenv("GITHUB_APP_PRIVATE_KEY"), "GitHub App private key (PEM)")
 	rootCmd.AddCommand(changelogCmd)
 }
 
@@ -69,6 +73,11 @@ func runChangelog(cmd *cobra.Command, args []string) error {
 
 	if changelogOutput == "" {
 		changelogOutput = defaultChangelogOutput
+	}
+
+	auth, err := resolveGitHubAuth(cmd.Context(), os.Getenv("GITHUB_API_URL"), os.Getenv("GITHUB_REPOSITORY"), changelogToken, changelogAppID, changelogPrivateKey)
+	if err != nil {
+		return err
 	}
 
 	configPath, cleanup, err := resolveChangelogConfig(changelogConfig)
@@ -109,9 +118,9 @@ func runChangelog(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if changelogToken != "" {
+	if auth.Token != "" {
 		commitSHA, err := commitSignedChangelog(cmd.Context(), signedChangelogOptions{
-			Token:      changelogToken,
+			Token:      auth.Token,
 			Repository: os.Getenv("GITHUB_REPOSITORY"),
 			APIURL:     os.Getenv("GITHUB_API_URL"),
 			Branch:     changelogBranch,
@@ -142,12 +151,12 @@ func runChangelog(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	commitHash, err := commitChangelog(repo, changelogOutput, changelogMessage)
+	commitHash, err := commitChangelog(repo, changelogOutput, changelogMessage, auth.Identity)
 	if err != nil {
 		return err
 	}
 
-	if err := pushChangelog(repo, changelogBranch, changelogToken, commitHash); err != nil {
+	if err := pushChangelog(repo, changelogBranch, auth.Token, commitHash); err != nil {
 		return err
 	}
 
@@ -495,7 +504,7 @@ func changelogCommitsToSkip(repo *git.Repository, outputPath, message string) ([
 	return commits, err
 }
 
-func commitChangelog(repo *git.Repository, outputPath, message string) (plumbing.Hash, error) {
+func commitChangelog(repo *git.Repository, outputPath, message string, identity gitHubIdentity) (plumbing.Hash, error) {
 	wt, err := repo.Worktree()
 	if err != nil {
 		return plumbing.Hash{}, err
@@ -507,8 +516,8 @@ func commitChangelog(repo *git.Repository, outputPath, message string) (plumbing
 
 	return wt.Commit(message, &git.CommitOptions{
 		Author: &object.Signature{
-			Name:  changelogCommitName,
-			Email: changelogCommitEmail,
+			Name:  identity.Name,
+			Email: identity.Email,
 			When:  time.Now(),
 		},
 	})
@@ -532,7 +541,7 @@ func pushChangelog(repo *git.Repository, branch, token string, commitHash plumbi
 			return fmt.Errorf("--token is required when GITHUB_REPOSITORY is set")
 		}
 		pushOpts.Auth = &httpgit.BasicAuth{
-			Username: "git",
+			Username: "x-access-token",
 			Password: token,
 		}
 	}
