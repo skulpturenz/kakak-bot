@@ -25,18 +25,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.ref }}
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: docker build --build-arg VERSION=${{ github.sha }} -t skulpture/kakak-bot:latest .
+
       - name: Match release label
         id: release-label
         uses: ./match-label
         with:
           allowed: release/major, release/minor, release/patch, release/prerelease
           default-match: release/prerelease
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Determine next Docker version
         id: bump
@@ -76,14 +79,16 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: true
-          build-args: |
-            VERSION=${{ steps.bump.outputs.next-tag }}
-          tags: ${{ steps.docker.outputs.tags }}
+      - name: Push Docker image
+        env:
+          TAGS: ${{ steps.docker.outputs.tags }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            [ -n "${tag}" ] || continue
+            docker tag skulpture/kakak-bot:latest "${tag}"
+            docker push "${tag}"
+          done <<< "${TAGS}"
 
       - name: Generate changelog
         id: changelog
@@ -91,6 +96,8 @@ jobs:
         with:
           branch: ${{ github.event.pull_request.base.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       - name: Create release
         uses: ./release
@@ -98,3 +105,5 @@ jobs:
           version: ${{ steps.bump.outputs.next-tag }}
           body: ${{ steps.changelog.outputs.unreleased-content }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
