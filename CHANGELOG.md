@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+[f8e5405](f8e5405c9b68ff0fd9b00051a2dc294497b20fa3)...[df54d7e](df54d7e08e14d97a948e88a5ff3ff78f2d58b27d)
+
+### Features
+
+- Support immutable releases with artefacts (#27) ([17590cf](17590cfecdbb7904dc00ceb5b0722319a27689d1))
+
+### Miscellaneous Tasks
+
+- Update release workflow to auth as gh app (#28) ([0a90aa5](0a90aa5834dce1e825868ec524d987a0577eca11))
+- Fix release workflow to use latest docker image contained in release instead of the previous one (#29) ([18e7285](18e7285330eaf5a8dd8f9b0a282050af4b30453c))
+
+## 0.0.1-0 - 2026-07-04
+
 ### Bug Fixes
 
 - Chmod (#6) ([babf4c3](babf4c35992be800a8f06f27052004f324f5ddff))
