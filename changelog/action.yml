@@ -17,6 +17,10 @@ inputs:
   output:
     description: "Path to the changelog file"
     default: "CHANGELOG.md"
+  app-id:
+    description: "GitHub App id. When set with private-key, an installation token is minted and used instead of token"
+  private-key:
+    description: "GitHub App private key (PEM)"
 outputs:
   commit-sha:
     description: "SHA of the changelog commit"
@@ -38,3 +42,7 @@ runs:
     - "${{ inputs.config }}"
     - "--output"
     - "${{ inputs.output }}"
+    - "--app-id"
+    - "${{ inputs.app-id }}"
+    - "--private-key"
+    - "${{ inputs.private-key }}"

@@ -18,9 +18,11 @@ import (
 )
 
 var (
-	releaseVersion string
-	releaseBody    string
-	githubToken    string
+	releaseVersion    string
+	releaseBody       string
+	githubToken       string
+	releaseAppID      string
+	releasePrivateKey string
 
 	releaseCmd = &cobra.Command{
 		Use:   "release",
@@ -33,6 +35,8 @@ func init() {
 	releaseCmd.Flags().StringVar(&releaseVersion, "version", "", "Version to release")
 	releaseCmd.Flags().StringVar(&releaseBody, "body", "", "Release body")
 	releaseCmd.Flags().StringVar(&githubToken, "token", os.Getenv("GITHUB_TOKEN"), "GitHub token")
+	releaseCmd.Flags().StringVar(&releaseAppID, "app-id", os.Getenv("GITHUB_APP_ID"), "GitHub App id (mints an installation token when set with --private-key)")
+	releaseCmd.Flags().StringVar(&releasePrivateKey, "private-key", os.Getenv("GITHUB_APP_PRIVATE_KEY"), "GitHub App private key (PEM)")
 	rootCmd.AddCommand(releaseCmd)
 }
 
@@ -58,6 +62,11 @@ func runRelease(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Validating version: %s\n", v.String())
 
+	auth, err := resolveGitHubAuth(cmd.Context(), os.Getenv("GITHUB_API_URL"), os.Getenv("GITHUB_REPOSITORY"), githubToken, releaseAppID, releasePrivateKey)
+	if err != nil {
+		return err
+	}
+
 	tag := version
 	fmt.Printf("Pushing tag: %s\n", tag)
 
@@ -73,8 +82,8 @@ func runRelease(cmd *cobra.Command, args []string) error {
 
 	_, err = r.CreateTag(tag, head.Hash(), &git.CreateTagOptions{
 		Tagger: &object.Signature{
-			Name:  changelogCommitName,
-			Email: changelogCommitEmail,
+			Name:  auth.Identity.Name,
+			Email: auth.Identity.Email,
 			When:  time.Now(),
 		},
 		Message: tag,
@@ -90,10 +99,10 @@ func runRelease(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	if githubToken != "" {
+	if auth.Token != "" {
 		pushOpts.Auth = &httpgit.BasicAuth{
-			Username: "git",
-			Password: githubToken,
+			Username: "x-access-token",
+			Password: auth.Token,
 		}
 	}
 
@@ -104,7 +113,7 @@ func runRelease(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Successfully pushed tag %s\n", tag)
 
-	if githubToken != "" {
+	if auth.Token != "" {
 		repo := os.Getenv("GITHUB_REPOSITORY")
 		if repo == "" {
 			fmt.Println("Warning: GITHUB_REPOSITORY not set, skipping GitHub release creation")
@@ -112,7 +121,7 @@ func runRelease(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("Creating GitHub release for %s in %s\n", tag, repo)
-		err := createGitHubRelease(repo, tag, releaseBody, githubToken)
+		err := createGitHubRelease(repo, tag, releaseBody, auth.Token)
 		if err != nil {
 			return fmt.Errorf("failed to create GitHub release: %w", err)
 		}

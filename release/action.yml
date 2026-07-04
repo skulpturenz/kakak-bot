@@ -9,6 +9,10 @@ inputs:
     description: "GitHub token"
     required: true
     default: ${{ github.token }}
+  app-id:
+    description: "GitHub App id. When set with private-key, an installation token is minted and used instead of token"
+  private-key:
+    description: "GitHub App private key (PEM)"
 runs:
   using: "docker"
   image: "Dockerfile"
@@ -19,3 +23,7 @@ runs:
     - "${{ inputs.body }}"
     - "--token"
     - "${{ inputs.token }}"
+    - "--app-id"
+    - "${{ inputs.app-id }}"
+    - "--private-key"
+    - "${{ inputs.private-key }}"

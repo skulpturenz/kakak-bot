@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestValidateVersion(t *testing.T) {
@@ -21,8 +22,6 @@ func TestValidateVersion(t *testing.T) {
 
 	for _, tc := range tests {
 		_, err := semver.NewVersion(tc.input)
-		if (err == nil) != tc.valid {
-			t.Errorf("ValidateVersion(%s) valid = %v; want %v", tc.input, err == nil, tc.valid)
-		}
+		assert.Equal(t, tc.valid, err == nil, "ValidateVersion(%s) valid", tc.input)
 	}
 }

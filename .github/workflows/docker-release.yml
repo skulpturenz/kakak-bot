@@ -27,10 +27,10 @@ jobs:
 
       - name: Match release label
         id: release-label
-        uses: zwaldowski/match-label-action@v6
+        uses: ./match-label
         with:
           allowed: release/major, release/minor, release/patch, release/prerelease
-          default_match: release/prerelease
+          default-match: release/prerelease
 
       - name: Login to Docker Hub
         uses: docker/login-action@v4
@@ -67,9 +67,6 @@ jobs:
           {
             echo "tags<<EOF"
             echo "skulpture/kakak-bot:${{ steps.bump.outputs.next-tag }}"
-            if [ "${BASE_BRANCH}" = "dev" ]; then
-              echo "skulpture/kakak-bot:dev"
-            fi
             if [ "${BASE_BRANCH}" = "master" ]; then
               case "${{ steps.bump.outputs.next-version }}" in
                 *-*) ;;
