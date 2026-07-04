@@ -91,6 +91,8 @@ jobs:
         with:
           branch: ${{ github.event.pull_request.base.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       - name: Create release
         uses: ./release
@@ -98,3 +100,5 @@ jobs:
           version: ${{ steps.bump.outputs.next-tag }}
           body: ${{ steps.changelog.outputs.unreleased-content }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
