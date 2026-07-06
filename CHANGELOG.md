@@ -1,8 +1,22 @@
+Supports rendering release summaries from the PR body for release merges
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+
+[df54d7e](df54d7e08e14d97a948e88a5ff3ff78f2d58b27d)...[c425e79](c425e7916530b535af20691a47d40ff76877d93c)
+
+### Features
+
+- Add release summary from pr body (#31) ([2098fae](2098fae5093fb0d1d07f56f1a47da1f72bc73dc1))
+
+### Miscellaneous Tasks
+
+- V0.0.1-2 (#32) ([c425e79](c425e7916530b535af20691a47d40ff76877d93c))
+
+## 0.0.1-1 - 2026-07-04
 
 [f8e5405](f8e5405c9b68ff0fd9b00051a2dc294497b20fa3)...[df54d7e](df54d7e08e14d97a948e88a5ff3ff78f2d58b27d)
 
