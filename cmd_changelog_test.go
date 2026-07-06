@@ -328,3 +328,149 @@ func Example_escapeGitHubContentPath() {
 	fmt.Println(escapeGitHubContentPath("docs/release notes/CHANGELOG.md"))
 	// Output: docs/release%20notes/CHANGELOG.md
 }
+
+func TestExtractPRNumber(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		want    int
+		ok      bool
+	}{
+		{"merge form", "v0.0.1-1 (#30)", 30, true},
+		{"github merge form", "Merge pull request #42 from feature/x", 42, true},
+		{"uses subject only", "chore: release (#7)\n\nbody mentions #999", 7, true},
+		{"no reference", "chore: no pr here", 0, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			number, ok := extractPRNumber(tc.message)
+			require.Equal(t, tc.ok, ok, "ok")
+			require.Equal(t, tc.want, number, "number")
+		})
+	}
+}
+
+func TestEnrichChangelogContextInjectsReleaseCommitPRBody(t *testing.T) {
+	// The release commit (id == commit_id) is deliberately not a merge commit,
+	// proving squash/rebase-merged releases are handled.
+	contextJSON := []byte(`[
+		{
+			"version": "v0.0.1-1",
+			"commit_id": "aaa",
+			"commits": [
+				{"id": "ccc", "message": "feat: a thing (#27)", "merge_commit": true},
+				{"id": "aaa", "message": "v0.0.1-1 (#30)", "merge_commit": false}
+			]
+		}
+	]`)
+
+	var fetched []int
+	fetch := func(number int) (string, error) {
+		fetched = append(fetched, number)
+		return "## Highlights\n\n- shipped a thing", nil
+	}
+
+	enriched, err := enrichChangelogContext(contextJSON, fetch)
+	require.NoError(t, err)
+
+	var releases []map[string]any
+	require.NoError(t, json.Unmarshal(enriched, &releases))
+	commits := releases[0]["commits"].([]any)
+
+	earlier := commits[0].(map[string]any)
+	require.NotContains(t, earlier, "extra", "a non-release PR in the range must not be enriched")
+
+	release := commits[1].(map[string]any)
+	extra, ok := release["extra"].(map[string]any)
+	require.True(t, ok, "the release commit should have extra")
+	require.Equal(t, "## Highlights\n\n- shipped a thing", extra["pr_body"])
+
+	require.Equal(t, []int{30}, fetched, "only the release commit's PR is fetched")
+}
+
+func TestEnrichChangelogContextSkipsReleaseCommitWithoutPR(t *testing.T) {
+	contextJSON := []byte(`[{"commit_id": "aaa", "commits": [{"id": "aaa", "message": "direct release"}]}]`)
+
+	var called bool
+	enriched, err := enrichChangelogContext(contextJSON, func(int) (string, error) {
+		called = true
+		return "x", nil
+	})
+	require.NoError(t, err)
+	require.False(t, called, "a release tip with no PR reference must not trigger a fetch")
+
+	var releases []map[string]any
+	require.NoError(t, json.Unmarshal(enriched, &releases))
+	require.NotContains(t, releases[0]["commits"].([]any)[0].(map[string]any), "extra")
+}
+
+func TestEnrichChangelogContextSkipsEmptyDescription(t *testing.T) {
+	contextJSON := []byte(`[{"commit_id": "aaa", "commits": [{"id": "aaa", "message": "v1 (#5)"}]}]`)
+
+	enriched, err := enrichChangelogContext(contextJSON, func(int) (string, error) {
+		return "   \n  ", nil
+	})
+	require.NoError(t, err)
+
+	var releases []map[string]any
+	require.NoError(t, json.Unmarshal(enriched, &releases))
+	commit := releases[0]["commits"].([]any)[0].(map[string]any)
+	require.NotContains(t, commit, "extra", "empty PR description must not inject extra")
+}
+
+func TestEnrichChangelogContextSkipsOnFetchError(t *testing.T) {
+	contextJSON := []byte(`[{"commit_id": "aaa", "commits": [{"id": "aaa", "message": "v1 (#5)"}]}]`)
+
+	enriched, err := enrichChangelogContext(contextJSON, func(int) (string, error) {
+		return "", fmt.Errorf("boom")
+	})
+	require.NoError(t, err, "a fetch error must not fail the whole render")
+
+	var releases []map[string]any
+	require.NoError(t, json.Unmarshal(enriched, &releases))
+	commit := releases[0]["commits"].([]any)[0].(map[string]any)
+	require.NotContains(t, commit, "extra")
+}
+
+func TestPullRequestBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertGitHubRequest(t, r, http.MethodGet)
+		require.Equal(t, "/repos/skulpture/kakak-bot/pulls/30", r.URL.Path)
+		writeJSON(t, w, http.StatusOK, map[string]any{"body": "## Notes\n\n- did stuff"})
+	}))
+	defer server.Close()
+
+	body, err := pullRequestBody(context.Background(), server.Client(), server.URL, "skulpture/kakak-bot", "token", 30)
+	require.NoError(t, err)
+	require.Equal(t, "## Notes\n\n- did stuff", body)
+}
+
+func TestPullRequestBodyHandlesNullBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, http.StatusOK, map[string]any{"body": nil})
+	}))
+	defer server.Close()
+
+	body, err := pullRequestBody(context.Background(), server.Client(), server.URL, "skulpture/kakak-bot", "token", 30)
+	require.NoError(t, err)
+	require.Empty(t, body)
+}
+
+func TestPRBodyFetcherCaches(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		writeJSON(t, w, http.StatusOK, map[string]any{"body": "cached"})
+	}))
+	defer server.Close()
+
+	fetch := prBodyFetcher(context.Background(), server.Client(), server.URL, "skulpture/kakak-bot", "token")
+
+	for i := 0; i < 3; i++ {
+		body, err := fetch(30)
+		require.NoError(t, err)
+		require.Equal(t, "cached", body)
+	}
+	require.Equal(t, 1, calls, "repeated fetches for the same PR should hit the cache")
+}
