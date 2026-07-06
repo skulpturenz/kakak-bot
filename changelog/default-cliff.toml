@@ -5,6 +5,13 @@
 # A Tera template to be rendered as the changelog's header.
 # See https://keats.github.io/tera/docs/#introduction
 header = """
+{% for release in releases %}{% if loop.first %}\
+    {% for commit in release.commits %}\
+        {% if commit.extra.pr_body is defined and commit.extra.pr_body | trim != "" %}\
+{{ commit.extra.pr_body | trim }}\n
+        {% endif %}\
+    {% endfor %}\
+{% endif %}{% endfor %}\
 # Changelog\n
 All notable changes to this project will be documented in this file.\n
 """

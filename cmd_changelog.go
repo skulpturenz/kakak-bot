@@ -13,6 +13,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,6 +98,24 @@ func runChangelog(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	repository := os.Getenv("GITHUB_REPOSITORY")
+	enrich := auth.Token != "" && repository != ""
+
+	if enrich {
+		fetch := prBodyFetcher(cmd.Context(), http.DefaultClient, os.Getenv("GITHUB_API_URL"), repository, auth.Token)
+
+		if _, err := renderEnrichedChangelog(configPath, skipCommits, fetch, nil, []string{"--output", changelogOutput}); err != nil {
+			return err
+		}
+
+		unreleasedContent, err := renderEnrichedChangelog(configPath, skipCommits, fetch, []string{"--unreleased"}, nil)
+		if err != nil {
+			return err
+		}
+
+		return finalizeChangelog(cmd.Context(), repo, auth, unreleasedContent)
+	}
+
 	if _, err := runGitCliff(configPath, skipCommits, "--output", changelogOutput); err != nil {
 		return err
 	}
@@ -105,6 +125,10 @@ func runChangelog(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	return finalizeChangelog(cmd.Context(), repo, auth, unreleasedContent)
+}
+
+func finalizeChangelog(ctx context.Context, repo *git.Repository, auth resolvedAuth, unreleasedContent string) error {
 	content, err := os.ReadFile(changelogOutput)
 	if err != nil {
 		return err
@@ -119,7 +143,7 @@ func runChangelog(cmd *cobra.Command, args []string) error {
 	}
 
 	if auth.Token != "" {
-		commitSHA, err := commitSignedChangelog(cmd.Context(), signedChangelogOptions{
+		commitSHA, err := commitSignedChangelog(ctx, signedChangelogOptions{
 			Token:      auth.Token,
 			Repository: os.Getenv("GITHUB_REPOSITORY"),
 			APIURL:     os.Getenv("GITHUB_API_URL"),
@@ -461,6 +485,173 @@ func runGitCliff(configPath string, skipCommits []string, args ...string) (strin
 	}
 
 	return stdout.String(), nil
+}
+
+// renderEnrichedChangelog renders the changelog in three steps: dump the
+// processed git-cliff context, inject merged PR descriptions into each merge
+// commit's `extra` field, then render from that enriched context. filterArgs are
+// applied to the context pass (e.g. --unreleased); outputArgs to the render pass
+// (e.g. --output CHANGELOG.md). It returns the render pass' stdout.
+func renderEnrichedChangelog(configPath string, skipCommits []string, fetch func(int) (string, error), filterArgs, outputArgs []string) (string, error) {
+	contextArgs := append(append([]string{}, filterArgs...), "--context")
+	contextJSON, err := runGitCliff(configPath, skipCommits, contextArgs...)
+	if err != nil {
+		return "", err
+	}
+
+	enriched, err := enrichChangelogContext([]byte(contextJSON), fetch)
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.CreateTemp("", "kakak-context-*.json")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(f.Name())
+
+	if _, err := f.Write(enriched); err != nil {
+		_ = f.Close()
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+
+	renderArgs := append([]string{"--from-context", f.Name()}, outputArgs...)
+	return runGitCliff(configPath, nil, renderArgs...)
+}
+
+// enrichChangelogContext sets commit.extra.pr_body to the merged PR's
+// description (fetched via fetch) for the single commit that the release was cut
+// at — the one whose id matches the release's commit_id. That is the
+// release/promotion PR; the descriptions of other PRs merged into the range are
+// intentionally left out. The release commit need not be a merge commit, so
+// squash- and rebase-merged releases are handled too. Releases whose tip has no
+// PR reference, an empty description, or a fetch error are left untouched.
+func enrichChangelogContext(contextJSON []byte, fetch func(int) (string, error)) ([]byte, error) {
+	var releases []map[string]any
+	if err := json.Unmarshal(contextJSON, &releases); err != nil {
+		return nil, fmt.Errorf("failed to parse git-cliff context: %w", err)
+	}
+
+	for _, release := range releases {
+		commitID, _ := release["commit_id"].(string)
+		if commitID == "" {
+			continue
+		}
+
+		commits, ok := release["commits"].([]any)
+		if !ok {
+			continue
+		}
+
+		for _, raw := range commits {
+			commit, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			if id, _ := commit["id"].(string); id != commitID {
+				continue
+			}
+
+			message, _ := commit["message"].(string)
+			number, ok := extractPRNumber(message)
+			if !ok {
+				break
+			}
+
+			body, err := fetch(number)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to fetch PR #%d description: %v\n", number, err)
+				break
+			}
+			if strings.TrimSpace(body) != "" {
+				commit["extra"] = map[string]any{"pr_body": body}
+			}
+			break
+		}
+	}
+
+	return json.Marshal(releases)
+}
+
+var prNumberPattern = regexp.MustCompile(`#(\d+)`)
+
+// extractPRNumber pulls the pull request number from a commit subject, matching
+// both the merge-commit form ("... (#30)") and GitHub's "Merge pull request #30
+// from ..." form.
+func extractPRNumber(message string) (int, bool) {
+	subject := strings.SplitN(message, "\n", 2)[0]
+	match := prNumberPattern.FindStringSubmatch(subject)
+	if match == nil {
+		return 0, false
+	}
+
+	number, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0, false
+	}
+	return number, true
+}
+
+// prBodyFetcher returns a closure that fetches (and caches) pull request
+// descriptions from GitHub.
+func prBodyFetcher(ctx context.Context, client *http.Client, apiURL, repository, token string) func(int) (string, error) {
+	cache := make(map[int]string)
+	return func(number int) (string, error) {
+		if body, ok := cache[number]; ok {
+			return body, nil
+		}
+
+		body, err := pullRequestBody(ctx, client, apiURL, repository, token, number)
+		if err != nil {
+			return "", err
+		}
+
+		cache[number] = body
+		return body, nil
+	}
+}
+
+// pullRequestBody fetches the description of a single pull request.
+func pullRequestBody(ctx context.Context, client *http.Client, apiURL, repository, token string, number int) (string, error) {
+	if apiURL == "" {
+		apiURL = defaultGitHubAPIURL
+	}
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	owner, repo, ok := strings.Cut(repository, "/")
+	if !ok || owner == "" || repo == "" {
+		return "", fmt.Errorf("GITHUB_REPOSITORY must be in owner/repo format")
+	}
+
+	endpoint := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", strings.TrimRight(apiURL, "/"), url.PathEscape(owner), url.PathEscape(repo), number)
+	req, err := newGitHubRequest(ctx, http.MethodGet, endpoint, token, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", githubResponseError(fmt.Sprintf("fetch pull request #%d", number), resp)
+	}
+
+	var payload struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	return payload.Body, nil
 }
 
 func changelogFileChanged(repo *git.Repository, outputPath string) (bool, error) {
